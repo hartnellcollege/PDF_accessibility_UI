@@ -41,7 +41,7 @@ function FormatSelection({ selectedFormat, onFormatChange }) {
           fontSize: { xs: '1.25rem', sm: '1.5rem' }
         }}
       >
-        Choose Output Format
+        Choose output format
       </Typography>
       <Grid container spacing={{ xs: 2, sm: 3 }} justifyContent="center">
         <Grid item xs={12} sm={6} md={6}>
