@@ -13,37 +13,34 @@ import './UploadSection.css';
 import { PDFBucket, HTMLBucket, validateBucketConfiguration, validateFormatBucket } from '../utilities/constants';
 
 function sanitizeFilename(filename, format = 'pdf') {
-  // Normalize the filename to decompose accented characters
   const normalized = filename.normalize('NFD');
-  // Remove combining diacritical marks
   const withoutDiacritics = normalized.replace(/[\u0300-\u036f]/g, '');
-  // Remove any characters outside of the ISO-8859-1 range.
-  // eslint-disable-next-line
   let sanitized = withoutDiacritics.replace(/[^\u0000-\u00FF]/g, '');
-  
-  // For PDF2HTML, apply comprehensive sanitization to match Bedrock Data Automation constraints
+
+  // Apply comprehensive sanitization for both formats —
+  // keeping only characters the backend regex allows: alphanumeric, space, . _ - ( ) [ ]
+  // eslint-disable-next-line no-control-regex
+  sanitized = sanitized.replace(/[^\w .\-()\[\]]/g, '_');
+  // \w covers [a-zA-Z0-9_] so _ is already included above
+
   if (format === 'html') {
-    // Replace spaces with underscores
+    // HTML path: spaces become underscores
     sanitized = sanitized.replace(/\s/g, '_');
-    
-    // Replace characters that violate Bedrock Data Automation S3 URI constraints
-    // Pattern disallows: \x00-\x1F (control chars), \x7F (DEL), { ^ } % ` ] " > [ ~ < # |
-    // Also replace other problematic characters: & \ * ? / $ ! ' : @ + =
-    // eslint-disable-next-line no-control-regex
-    const problematicChars = /[\x00-\x1F\x7F{^}%`\]">[~<#|&\\*?/$!'":@+=]/g;
-    sanitized = sanitized.replace(problematicChars, '_');
-    
-    // Replace multiple consecutive underscores with a single one
-    while (sanitized.includes('__')) {
-      sanitized = sanitized.replace(/__/g, '_');
-    }
-    
-    // Remove leading/trailing underscores
-    sanitized = sanitized.replace(/^_+|_+$/g, '');
   }
-  
-  // If the sanitized filename is empty, return a default value.
-  return sanitized.trim() ? sanitized : 'default.pdf';
+  // pdf path: spaces are allowed by the backend regex so leave them as-is
+
+  // Collapse multiple consecutive underscores
+  sanitized = sanitized.replace(/_+/g, '_');
+
+  // Remove leading/trailing underscores and spaces
+  sanitized = sanitized.replace(/^[_ ]+|[_ ]+$/g, '');
+
+  // Ensure starts with alphanumeric (backend regex requires ^[a-zA-Z0-9])
+  sanitized = sanitized.replace(/^[^a-zA-Z0-9]+/, '');
+
+  // Strip the extension before checking emptiness, then re-add
+  const withoutExt = sanitized.replace(/\.pdf$/i, '');
+  return withoutExt.trim() ? sanitized : 'default.pdf';
 }
 
 
@@ -117,27 +114,63 @@ function UploadSection({ onUploadComplete }) {
         resetFileInput();
         return;
       }
+
+      // Magic bytes check
+      const magicBuffer = await file.slice(0, 5).arrayBuffer();
+      const magicBytes = new Uint8Array(magicBuffer);
+      const magicString = String.fromCharCode(...magicBytes);
+      if (magicString !== '%PDF-') {
+        setErrorMessage(`"${file.name}" is not a valid PDF file.`);
+        setOpenSnackbar(true);
+        resetFileInput();
+        return;
+      }
     }
 
-    // **2. Page Count Check with pdf-lib**
+    // **2. PDF validation with pdf-lib**
     try {
+      for (const file of inputFiles) {
+        const sizeMB = file.size / (1024 * 1024);
+        if (sizeMB > 500) {
+          setErrorMessage(`"${file.name}" exceeds the 500MB size limit.`);
+          setOpenSnackbar(true);
+          resetFileInput();
+          return;
+        }
+
+        // Encryption check
+        const arrayBuffer = await file.arrayBuffer();
+        let pdfDoc;
+        try {
+          pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: false }); // Should throw error if encrypted
+          if (pdfDoc.isEncrypted) throw new Error(); // Explicitly throw error if file was loaded
+        } catch (e) {
+          setErrorMessage(`"${file.name}" is password protected. Please remove the password and try again.`);
+          setOpenSnackbar(true);
+          resetFileInput();
+          return;
+        }
+      }
+
       setSelectedFiles(inputFiles);
 
       if (inputFiles.length === 1) {
         const file = inputFiles[0];
         const sizeInBytes = file.size || 0;
         const sizeInMB = sizeInBytes / (1024 * 1024);
-        const displaySize = sizeInMB >= 0.1 ? parseFloat(sizeInMB.toFixed(1)) : parseFloat(sizeInMB.toFixed(2));
+        const displaySize = sizeInMB >= 0.1
+          ? parseFloat(sizeInMB.toFixed(1))
+          : parseFloat(sizeInMB.toFixed(2));
         setFileSizeMB(displaySize);
         console.log('File size set to:', sizeInMB, 'MB for file:', file.name, '(raw size:', file.size, 'bytes)');
       }
+
       // Pass the file directly to handleUpload
       const uploadRes = await Promise.all(inputFiles.map(handleUpload));
       const newFilenames = uploadRes.map(r => r.uniqueFilename);
       const sanitizedFilenames = uploadRes.map(r => r.sanitizedFileName);
 
       onUploadComplete(newFilenames, sanitizedFilenames, selectedFormat || 'pdf');
-      // handleUpload(file);
     } catch (error) {
       setErrorMessage('Unable to read the PDF file.');
       setOpenSnackbar(true);
