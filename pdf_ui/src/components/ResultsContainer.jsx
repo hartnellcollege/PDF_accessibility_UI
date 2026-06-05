@@ -95,7 +95,7 @@ const ResultsContainer = ({
             zip.file(downloadName, blob);
           } catch (error) {
             console.error(`Failed to download ${originalName}:`, error);
-            failedFiles.push(originalName);
+            failedFiles.push({ name: originalName, status: error instanceof ApiError ? error.status : null });
           }
         })
       )
@@ -104,7 +104,14 @@ const ResultsContainer = ({
       if (failedFiles.length > 0 && failedFiles.length < processedFiles.length) {
         setErrorMessage(`Some files could not be downloaded: ${failedFiles.join(', ')}\nPlease re-upload those files and try again.`);
       } else if (failedFiles.length === processedFiles.length) {
-        throw new ApiError('All file downloads failed. Please try again.', 'DOWNLOAD_ERROR', null);
+        const allTimedOut = failedFiles.every(f => f.status === 403);
+        throw new ApiError(
+          allTimedOut
+            ? 'File downloads timed out. Please re-upload your files and try again.'
+            : 'File downloads failed. Please try again.',
+          'DOWNLOAD_ERROR',
+          allTimedOut ? 403 : null
+        );
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });

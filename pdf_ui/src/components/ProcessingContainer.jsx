@@ -100,8 +100,8 @@ const ProcessingContainer = ({
     }
 
     const checkFileAvailability = async () => {
-      // Maximum polling time: 30 minutes (120 attempts * 15 seconds = 30 minutes)
-      const MAX_POLLING_ATTEMPTS = 120;
+      // Maximum polling time: 15 minutes (60 attempts * 15 seconds = 15 minutes)
+      const MAX_POLLING_ATTEMPTS = 60;
 
       // Increment polling attempts
       setPollingAttempts(prev => {
