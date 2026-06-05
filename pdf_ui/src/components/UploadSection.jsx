@@ -397,7 +397,7 @@ function UploadSection({ onUploadComplete }) {
 
             <div className="upload-buttons">
               <button className="change-format-btn" onClick={() => setSelectedFormat(null)}>
-                Change Output Format
+                Change output format
               </button>
               <button className="upload-btn" onClick={handleFileSelect} disabled={isUploading}>
                 {isUploading ? 'Uploading...' : 'Upload PDFs'}
