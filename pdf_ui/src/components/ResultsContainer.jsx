@@ -106,9 +106,7 @@ const ResultsContainer = ({
       } else if (failedFiles.length === processedFiles.length) {
         const allTimedOut = failedFiles.every(f => f.status === 403);
         throw new ApiError(
-          allTimedOut
-            ? 'File downloads timed out. Please re-upload your files and try again.'
-            : 'File downloads failed. Please try again.',
+          'File downloads failed. Please try again.',
           'DOWNLOAD_ERROR',
           allTimedOut ? 403 : null
         );
