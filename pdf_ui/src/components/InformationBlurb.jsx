@@ -29,7 +29,7 @@ const InformationBlurb = () => {
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
         gap: { xs: 2, sm: 3, md: 8 },
-        alignItems: 'center',
+        alignItems: 'start',
         justifyContent: 'center',
         padding: { xs: 1, sm: 2, md: 0 },
         flexWrap: 'wrap',
